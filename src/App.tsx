@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import Login from "./pages/Login";
 import UserPage from "./pages/UserPage";
 import GameRoom from "./pages/GameRoom";
+import PaymentsPage from "./pages/PaymentsPage";
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/user" element={<UserPage />} />
           <Route path="/game" element={<GameRoom />} />
+          <Route path="/payments" element={<PaymentsPage />} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </Router>

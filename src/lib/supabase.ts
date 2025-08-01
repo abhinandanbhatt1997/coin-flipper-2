@@ -13,6 +13,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,     // Keep user logged in after page reload
     autoRefreshToken: true,   // Automatically refresh tokens
+    detectSessionInUrl: true, // Handle OAuth redirects
   }
 });
 

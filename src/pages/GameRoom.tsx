@@ -223,30 +223,7 @@ const GameRoom: React.FC = () => {
           .eq('game_id', gameState.id)
           .eq('user_id', player.id);
 
-        // Update wallet balance
-        const { data: currentUser } = await supabase
-          .from('users')
-          .select('wallet_balance')
-          .eq('id', player.id)
-          .single();
-
-        if (currentUser) {
-          await supabase
-            .from('users')
-            .update({
-              wallet_balance: currentUser.wallet_balance + playerPayout
-            })
-            .eq('id', player.id);
-        }
-
-        // Create transaction
-        await supabase.from('transactions').insert({
-          user_id: player.id,
-          type: isWinner ? 'game_win' : 'game_loss',
-          amount: playerPayout,
-          status: 'completed',
-          reference_id: gameState.id
-        });
+        // Don't update wallet balance here - let payments page handle it
       }
 
       setGameState(prev => prev ? { ...prev, winner, status: 'completed' } : null);
@@ -257,8 +234,10 @@ const GameRoom: React.FC = () => {
         toast.success(`You received ₹${(gameState.entryFee * 0.8).toLocaleString()} back`);
       }
 
-      // Refresh user data
-      refetch();
+      // Navigate to payments page instead of refreshing
+      setTimeout(() => {
+        navigate(`/payments?gameId=${gameState.id}&winner=${winner.id === user.id}&amount=${winner.id === user.id ? payout : gameState.entryFee * 0.8}`);
+      }, 3000);
 
     } catch (error: any) {
       console.error('Error completing game:', error);

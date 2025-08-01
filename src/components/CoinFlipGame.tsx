@@ -248,9 +248,9 @@ const CoinFlipGame: React.FC<CoinFlipGameProps> = ({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={onLeaveGame}
-              className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all"
+              className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold hover:from-green-600 hover:to-emerald-600 transition-all"
             >
-              Play Again
+              View Results & Claim Winnings
             </motion.button>
           )}
         </div>
