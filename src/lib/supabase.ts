@@ -111,3 +111,5 @@ export const signInWithGoogle = async () => {
     console.error('Google sign-in error:', error);
     throw error;
   }
+
+}
