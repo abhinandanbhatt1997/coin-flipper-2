@@ -363,4 +363,3 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
       </motion.div>
     </div>
   );
-};
