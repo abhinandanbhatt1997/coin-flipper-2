@@ -132,7 +132,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
               className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
             >
               <Shield className="w-8 h-8 text-white" />
-            </motion.div> {/* FIXED closing tag */}
+            </motion.div>
             <h1 className="text-2xl font-bold text-white mb-2">Verify OTP</h1>
             <p className="text-white/80">
               Enter the OTP sent to your {isEmail ? 'email' : 'phone'}
@@ -363,3 +363,4 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
       </motion.div>
     </div>
   );
+};
