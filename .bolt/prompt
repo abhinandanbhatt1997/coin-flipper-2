@@ -1,5 +1,20 @@
-For all designs I ask you to make, have them be beautiful, not cookie cutter. Make webpages that are fully featured and worthy for production.
+Build a complete fullstack web app using React (with TypeScript), Tailwind CSS, React Router, Node.js (Express), and Supabase for authentication and database.
+The app should include the following pages:
 
-By default, this template supports JSX syntax with Tailwind CSS classes, React hooks, and Lucide React for icons. Do not install other packages for UI themes, icons, etc unless absolutely necessary or I request them.
+Home
 
-Use icons from lucide-react for logos.
+Login/Register (with Google and Email OTP login via Supabase)
+
+Dashboard (protected route, shows user wallet and history)
+
+Matches or Game page (protected route)
+
+Settings page
+
+Backend should handle API routes for user data, game logic, and wallet transactions.
+Supabase should store user profiles, game history, and wallet balance.
+Routing should be set up using React Router and protected routes should redirect unauthenticated users to Login.
+
+Implement file structure with pages/, components/, hooks/, lib/, and utils/. Include example API routes and protected route logic.
+
+Make sure the frontend and backend are connected properly and that the app works end-to-end with Supabase.
