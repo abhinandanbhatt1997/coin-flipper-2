@@ -1,36 +1,19 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
 export const AuthForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
+  const navigate = useNavigate();
+
   const handleGoogleSignIn = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
     });
-    if (error) {// src/components/AuthForm.tsx
-import { useNavigate } from "react-router-dom";
-// ...
-const AuthForm = ({ onSuccess }: { onSuccess: () => void }) => {
-  const navigate = useNavigate();
-
-  const handleGoogleSignIn = async () => {
-    const { error } = await signInWithGoogle(); // This triggers OAuth redirect
     if (error) {
-      toast.error("Google Sign-in failed");
-    } else {
-      navigate("/user"); // ✅ Redirects to dashboard after login
-    }
-  };
-
-  return (
-    <Button onClick={handleGoogleSignIn}>
-      Sign in with Google
-    </Button>
-  );
-};
-
       console.error("Google login error:", error.message);
     } else {
-      onSuccess(); // callback after successful login
+      navigate("/user");
+      onSuccess();
     }
   };
 
@@ -45,4 +28,3 @@ const AuthForm = ({ onSuccess }: { onSuccess: () => void }) => {
       </button>
     </div>
   );
-};
