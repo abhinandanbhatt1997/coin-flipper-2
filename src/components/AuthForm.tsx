@@ -28,5 +28,6 @@ export const AuthForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => 
       </button>
     </div>
   );
+};
 
 }
