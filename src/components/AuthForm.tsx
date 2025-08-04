@@ -82,12 +82,18 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
     }
   };
 
-  await supabase.auth.signInWithOAuth({
-  provider: 'google',
-  options: {
-    redirectTo: 'http://localhost:5173/user', // or your deployed URL
-  },
-});
+  const handleGoogleSignIn = async () => {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: 'http://localhost:5173/user',
+    },
+  });
+
+  if (error) {
+    console.error('Google sign-in error:', error.message);
+  }
+};
 
 
       if (error) throw error;
