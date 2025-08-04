@@ -93,7 +93,7 @@ const handleGoogleSignIn = async () => {
     });
 
     if (error) throw error;
-  } catch (error: any) {
+    catch (error: any) {
     toast.error(error.message || 'Google sign in failed');
   } finally {
     setLoading(false);
