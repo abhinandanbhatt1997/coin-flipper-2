@@ -83,23 +83,6 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
   };
 
   const handleGoogleSignIn = async () => {
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: 'http://localhost:5173/user',
-        },
-      });
-
-      if (error) throw error;
-    } catch (error: any) {
-      toast.error(error.message || 'Google sign in failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-const handleGoogleSignIn = async () => {
   setLoading(true);
   try {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -395,5 +378,4 @@ const handleGoogleSignIn = async () => {
       </motion.div>
     </div>
   );
-};
 };
