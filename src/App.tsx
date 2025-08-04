@@ -1,11 +1,43 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from 'react-hot-toast';
+import { useEffect } from "react";
+import { supabase } from "./lib/supabase";
+
 import Login from "./pages/Login";
 import UserPage from "./pages/UserPage";
 import GameRoom from "./pages/GameRoom";
 import PaymentsPage from "./pages/PaymentsPage";
 
 function App() {
+  useEffect(() => {
+    // 1. Handle OAuth redirect callback
+    const exchangeSession = async () => {
+      const { data, error } = await supabase.auth.exchangeCodeForSession();
+      if (error) {
+        console.error("OAuth callback error:", error.message);
+      } else {
+        console.log("OAuth session:", data?.session);
+      }
+    };
+
+    // 👇 Only run this on redirect URLs (e.g., after login)
+    if (window.location.href.includes('code=') && window.location.href.includes('state=')) {
+      exchangeSession();
+    }
+
+    // 2. Listen to auth state changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth event:", event);
+      console.log("Session:", session);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   return (
     <>
       <Router>

@@ -99,6 +99,28 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
       setLoading(false);
     }
   };
+const handleGoogleSignIn = async () => {
+  setLoading(true);
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/user`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent'
+        }
+      }
+    });
+
+    if (error) throw error;
+  } catch (error: any) {
+    toast.error(error.message || 'Google sign in failed');
+    console.error('Google auth error:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleOTPRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -373,4 +395,5 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
       </motion.div>
     </div>
   );
+};
 };
