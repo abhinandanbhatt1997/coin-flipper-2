@@ -1,260 +1,164 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import Confetti from 'react-confetti';
-import { Users, Clock, Trophy, Coins } from 'lucide-react';
-
-interface Player {
-  id: string;
-  name: string;
-  avatar: string;
-}
+import React, { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { supabase } from "../lib/supabase";
+import { motion } from "framer-motion";
 
 interface GameState {
   id: string;
-  category: string;
-  entryFee: number;
-  players: Player[];
-  maxPlayers: number;
-  status: 'waiting' | 'flipping' | 'completed';
-  winner?: Player;
-  timeLeft?: number;
+  status: string;
+  entry_fee: number;
+  max_players: number;
+  current_players: number;
+  winner_id: string | null;
+  players: { user_id: string }[];
 }
 
-interface CoinFlipGameProps {
-  gameState: GameState;
-  onGameComplete: (winner: Player, payout: number) => void;
-  onLeaveGame: () => void;
-}
-
-const CoinFlipGame: React.FC<CoinFlipGameProps> = ({ 
-  gameState, 
-  onGameComplete, 
-  onLeaveGame 
-}) => {
+const CoinFlipGame: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [isFlipping, setIsFlipping] = useState(false);
   const [showResult, setShowResult] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+
+  const gameId = new URLSearchParams(location.search).get("id");
 
   useEffect(() => {
-    if (gameState.players.length === gameState.maxPlayers && gameState.status === 'waiting') {
-      // Start countdown when room is full
-      const delay = 500 + Math.random() * 300; // 500-800ms variable delay
-      setCountdown(3);
-      
-      const countdownInterval = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(countdownInterval);
-            setTimeout(() => startCoinFlip(), delay);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+    const fetchUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUserId(user?.id ?? null);
+    };
+    fetchUser();
+  }, []);
 
-      return () => clearInterval(countdownInterval);
-    }
-  }, [gameState.players.length, gameState.maxPlayers]);
+  useEffect(() => {
+    if (!gameId) return;
 
-  const startCoinFlip = () => {
+    const fetchGameState = async () => {
+      const { data: game, error } = await supabase
+        .from("games")
+        .select("*")
+        .eq("id", gameId)
+        .single();
+
+      const { data: participants } = await supabase
+        .from("game_participants")
+        .select("user_id")
+        .eq("game_id", gameId);
+
+      if (game) {
+        setGameState({ ...game, players: participants || [] });
+      }
+    };
+
+    fetchGameState();
+
+    const channel = supabase
+      .channel(`game-${gameId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "games" },
+        (payload) => {
+          const updated = payload.new;
+          setGameState((prev) =>
+            prev ? { ...prev, ...updated } : { ...updated, players: [] }
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [gameId]);
+
+  const startCoinFlip = async () => {
+    if (!gameId || !userId || !gameState || gameState.status !== "waiting") return;
+
     setIsFlipping(true);
-    
-    // Simulate coin flip animation
-    setTimeout(() => {
-      const winnerIndex = Math.floor(Math.random() * gameState.players.length);
-      const winner = gameState.players[winnerIndex];
-      const payout = gameState.entryFee * 1.5;
-      
-      setIsFlipping(false);
+    setTimeout(async () => {
+      const winner = gameState.players[Math.floor(Math.random() * gameState.players.length)];
+
+      await supabase
+        .from("games")
+        .update({ status: "completed", winner_id: winner.user_id })
+        .eq("id", gameId);
+
+      await Promise.all(
+        gameState.players.map((p) => {
+          const isWinner = p.user_id === winner.user_id;
+          return supabase.from("game_participants").update({
+            amount_won: isWinner
+              ? gameState.entry_fee * 1.5
+              : gameState.entry_fee * 0.8,
+            is_winner: isWinner,
+          })
+          .eq("user_id", p.user_id)
+          .eq("game_id", gameId);
+        })
+      );
+
       setShowResult(true);
-      onGameComplete(winner, payout);
+      setIsFlipping(false);
     }, 3000);
   };
 
+  useEffect(() => {
+    if (
+      gameState &&
+      gameState.players.length >= 1 && // FOR DEMO MODE
+      gameState.status === "waiting"
+    ) {
+      startCoinFlip();
+    }
+  }, [gameState]);
+
+  if (!gameState || !userId) return <div className="text-white">Loading game...</div>;
+
+  const isWinner = userId === gameState.winner_id;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
-      {showResult && gameState.winner && (
-        <Confetti
-          width={window.innerWidth}
-          height={window.innerHeight}
-          recycle={false}
-          numberOfPieces={200}
-        />
+    <div className="h-screen flex flex-col items-center justify-center text-white bg-gradient-to-br from-black to-gray-900">
+      <h1 className="text-3xl font-bold mb-4">Coin Flip Game</h1>
+      <p className="mb-2">Game ID: {gameId}</p>
+      <p className="mb-2">Players Joined: {gameState.players.length}</p>
+      <p className="mb-2">Status: {gameState.status}</p>
+
+      {isFlipping && <p className="mt-6 animate-pulse text-yellow-300">Flipping coin...</p>}
+
+      {!isFlipping && !showResult && gameState.status === "waiting" && (
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => startCoinFlip()}
+          className="mt-6 px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold"
+        >
+          Start Game Now
+        </motion.button>
       )}
-      
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 w-full max-w-4xl"
+
+      {showResult && (
+        <div className="mt-6 text-center">
+          <h2 className="text-2xl font-bold">
+            {isWinner ? "🎉 You won!" : "😢 You lost!"}
+          </h2>
+          <button
+            onClick={() => navigate("/user")}
+            className="mt-4 px-4 py-2 bg-white text-black rounded"
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      )}
+
+      <button
+        onClick={() => navigate("/user")}
+        className="mt-10 px-4 py-2 border border-white rounded"
       >
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">
-            {gameState.category} Room
-          </h1>
-          <div className="flex items-center justify-center gap-4 text-white/80">
-            <div className="flex items-center gap-2">
-              <Coins className="w-5 h-5" />
-              <span>₹{gameState.entryFee}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              <span>{gameState.players.length}/{gameState.maxPlayers}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Trophy className="w-5 h-5" />
-              <span>₹{(gameState.entryFee * 1.5).toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Players Grid */}
-        <div className="grid grid-cols-5 gap-4 mb-8">
-          {Array.from({ length: gameState.maxPlayers }).map((_, index) => {
-            const player = gameState.players[index];
-            const isWinner = showResult && gameState.winner?.id === player?.id;
-            
-            return (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className={`relative aspect-square rounded-2xl flex items-center justify-center ${
-                  player 
-                    ? isWinner 
-                      ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' 
-                      : 'bg-gradient-to-br from-blue-500 to-purple-600'
-                    : 'bg-white/10 border-2 border-dashed border-white/30'
-                }`}
-              >
-                {player ? (
-                  <div className="text-center">
-                    <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mb-2 mx-auto">
-                      <span className="text-white font-bold">
-                        {player.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="text-white text-xs font-medium truncate">
-                      {player.name}
-                    </div>
-                    {isWinner && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="absolute -top-2 -right-2"
-                      >
-                        <Trophy className="w-6 h-6 text-yellow-300" />
-                      </motion.div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-white/50 text-center">
-                    <Users className="w-8 h-8 mx-auto mb-1" />
-                    <div className="text-xs">Waiting</div>
-                  </div>
-                )}
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {/* Game Status */}
-        <div className="text-center">
-          <AnimatePresence mode="wait">
-            {countdown > 0 && (
-              <motion.div
-                key="countdown"
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.5 }}
-                className="text-6xl font-bold text-white mb-4"
-              >
-                {countdown}
-              </motion.div>
-            )}
-            
-            {isFlipping && (
-              <motion.div
-                key="flipping"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="text-center"
-              >
-                <motion.div
-                  animate={{ rotateY: 360 }}
-                  transition={{ duration: 0.5, repeat: Infinity, ease: "linear" }}
-                  className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center text-2xl font-bold text-yellow-900"
-                >
-                  ₹
-                </motion.div>
-                <div className="text-2xl font-bold text-white">Flipping Coin...</div>
-              </motion.div>
-            )}
-            
-            {showResult && gameState.winner && (
-              <motion.div
-                key="result"
-                initial={{ opacity: 0, y: 50 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center"
-              >
-                <div className="text-3xl font-bold text-white mb-2">
-                  🎉 {gameState.winner.name} Wins! 🎉
-                </div>
-                <div className="text-xl text-yellow-400 mb-4">
-                  Prize: ₹{(gameState.entryFee * 1.5).toLocaleString()}
-                </div>
-                <div className="text-white/80">
-                  Others receive: ₹{(gameState.entryFee * 0.8).toLocaleString()}
-                </div>
-              </motion.div>
-            )}
-            
-            {gameState.players.length < gameState.maxPlayers && (
-              <motion.div
-                key="waiting"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center"
-              >
-                <div className="flex items-center justify-center gap-2 text-white mb-4">
-                  <Clock className="w-5 h-5 animate-pulse" />
-                  <span>Waiting for players...</span>
-                </div>
-                <div className="text-white/60">
-                  {gameState.maxPlayers - gameState.players.length} more players needed
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-center gap-4 mt-8">
-          {!showResult && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onLeaveGame}
-              className="px-6 py-3 bg-red-500/20 text-red-300 rounded-xl font-semibold hover:bg-red-500/30 transition-colors"
-            >
-              Leave Game
-            </motion.button>
-          )}
-          
-          {showResult && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onLeaveGame}
-              className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold hover:from-green-600 hover:to-emerald-600 transition-all"
-            >
-              View Results & Claim Winnings
-            </motion.button>
-          )}
-        </div>
-      </motion.div>
+        Leave Game
+      </button>
     </div>
   );
 };

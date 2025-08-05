@@ -26,7 +26,7 @@ const UserPage: React.FC = () => {
       toast.error("Insufficient balance!");
       return;
     }
-    navigate(`/game?category=${category.name}&amount=${category.amount}`);
+    navigate('/game?category=${category.name}&amount=${category.amount}');
   };
 
   const handleSignOut = async () => {
@@ -130,7 +130,7 @@ const UserPage: React.FC = () => {
                 activeTab === tab.id
                   ? 'bg-white/20 text-white shadow-lg'
                   : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80'
-              }`}
+               }`}
             >
               <tab.icon className="w-5 h-5" />
               {tab.label}

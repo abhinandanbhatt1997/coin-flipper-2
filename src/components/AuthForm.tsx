@@ -82,7 +82,6 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
     }
   };
 
-  const handleGoogleSignIn = async () => {
   setLoading(true);
   try {
     const { error } = await supabase.auth.signInWithOAuth({

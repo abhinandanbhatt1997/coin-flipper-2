@@ -7,6 +7,8 @@ import Login from "./pages/Login";
 import UserPage from "./pages/UserPage";
 import GameRoom from "./pages/GameRoom";
 import PaymentsPage from "./pages/PaymentsPage";
+import GameLobby from "./game/GameLobby";
+import PlayGamePage from "./pages/PlayGamePage"; // ✅ FIX: Import this!
 
 function App() {
   useEffect(() => {
@@ -20,12 +22,10 @@ function App() {
       }
     };
 
-    // 👇 Only run this on redirect URLs (e.g., after login)
     if (window.location.href.includes('code=') && window.location.href.includes('state=')) {
       exchangeSession();
     }
 
-    // 2. Listen to auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -46,9 +46,12 @@ function App() {
           <Route path="/user" element={<UserPage />} />
           <Route path="/game" element={<GameRoom />} />
           <Route path="/payments" element={<PaymentsPage />} />
+          <Route path="/lobby/:id" element={<GameLobby />} />
+          <Route path="/play" element={<PlayGamePage />} /> {/* ✅ FIXED: placed before "*" */}
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </Router>
+      
       <Toaster
         position="top-right"
         toastOptions={{
