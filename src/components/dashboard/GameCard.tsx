@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Users, Clock, Coins, Plus, Gamepad2 } from 'lucide-react';
+import { Play, Users, Clock, Coins, Plus, Gamepad2, Trophy, Star, Crown, Shield, Target, Zap } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 
 interface ActiveGame {
@@ -15,6 +16,7 @@ interface ActiveGame {
 
 const GameCard: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [joiningGameId, setJoiningGameId] = useState<string | null>(null);
@@ -62,15 +64,15 @@ const GameCard: React.FC = () => {
   };
 
   const handleJoinGame = async (gameId: string) => {
+    if (!user) {
+      toast.error('Please log in first');
+      navigate('/login');
+      return;
+    }
+
     setJoiningGameId(gameId);
     
     try {
-      if (!user) {
-        toast.error('Please log in first');
-        navigate('/login');
-        return;
-      }
-
       // Get game details
       const { data: gameData, error: gameError } = await supabase
         .from('games')
@@ -102,7 +104,7 @@ const GameCard: React.FC = () => {
       }
 
       // Use RPC to join game
-      const { error: rpcError } = await supabase
+      const { data: resultGameId, error: rpcError } = await supabase
         .rpc('auto_join_or_create_game', {
           _user_id: user.id,
           _entry_fee: gameData.entry_fee,
@@ -119,7 +121,7 @@ const GameCard: React.FC = () => {
 
       if (walletError) throw walletError;
 
-      // Log transaction
+      // Log transaction (without game_id to avoid schema issues)
       await supabase.from('transactions').insert({
         user_id: user.id,
         type: 'game_entry',
@@ -129,7 +131,7 @@ const GameCard: React.FC = () => {
       });
 
       toast.success('Joined game successfully!');
-      navigate(`/lobby/${gameId}`);
+      navigate(`/lobby/${resultGameId || gameId}`);
 
     } catch (error: any) {
       console.error('Error joining game:', error);
@@ -154,6 +156,42 @@ const GameCard: React.FC = () => {
     if (hours < 24) return `${hours}h ago`;
     const days = Math.floor(hours / 24);
     return `${days}d ago`;
+  };
+
+  const getCategoryIcon = (entryFee: number) => {
+    switch (entryFee) {
+      case 100: return <Shield className="w-5 h-5" />;
+      case 250: return <Crown className="w-5 h-5" />;
+      case 500: return <Star className="w-5 h-5" />;
+      case 1000: return <Zap className="w-5 h-5" />;
+      case 2000: return <Trophy className="w-5 h-5" />;
+      case 5000: return <Target className="w-5 h-5" />;
+      default: return <Play className="w-5 h-5" />;
+    }
+  };
+
+  const getCategoryName = (entryFee: number) => {
+    switch (entryFee) {
+      case 100: return 'Iron';
+      case 250: return 'Gold';
+      case 500: return 'Diamond';
+      case 1000: return 'Uranium';
+      case 2000: return 'Platinum';
+      case 5000: return 'Ruby';
+      default: return 'Custom';
+    }
+  };
+
+  const getCategoryGradient = (entryFee: number) => {
+    switch (entryFee) {
+      case 100: return 'from-gray-400 to-gray-600';
+      case 250: return 'from-yellow-400 to-orange-600';
+      case 500: return 'from-blue-400 to-purple-600';
+      case 1000: return 'from-green-400 to-emerald-600';
+      case 2000: return 'from-indigo-400 to-purple-600';
+      case 5000: return 'from-red-400 to-pink-600';
+      default: return 'from-purple-400 to-blue-600';
+    }
   };
 
   if (loading) {
@@ -201,52 +239,62 @@ const GameCard: React.FC = () => {
                 key={game.id}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-white/5 rounded-lg p-4 border border-white/10 hover:bg-white/10 transition-colors"
+                className={`bg-gradient-to-r ${getCategoryGradient(game.entry_fee)} rounded-lg p-4 border border-white/20 hover:shadow-lg transition-all`}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center">
-                      <Coins className="w-4 h-4 text-purple-400" />
+                    <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                      {getCategoryIcon(game.entry_fee)}
                     </div>
                     <div>
-                      <div className="text-white font-medium">
-                        ₹{game.entry_fee} Game
+                      <div className="text-white font-bold">
+                        {getCategoryName(game.entry_fee)} Game
                       </div>
-                      <div className="flex items-center gap-2 text-white/60 text-sm">
-                        <Clock className="w-3 h-3" />
-                        <span>{getTimeAgo(game.created_at)}</span>
+                      <div className="text-white/80 text-sm">
+                        ₹{game.entry_fee.toLocaleString()} Entry
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="flex items-center gap-1 text-white/80">
+                    <div className="flex items-center gap-1 text-white">
                       <Users className="w-4 h-4" />
-                      <span className="font-medium">
+                      <span className="font-bold">
                         {game.current_players}/{game.max_players}
                       </span>
                     </div>
-                    <div className="text-xs text-white/60">
+                    <div className="text-xs text-white/80">
                       {spotsLeft} spots left
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-3">
-                  <div className="w-full bg-white/10 rounded-full h-2">
+                <div className="mb-3">
+                  <div className="w-full bg-white/20 rounded-full h-2">
                     <div
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
+                      className="bg-white/60 h-2 rounded-full transition-all duration-300"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
                 </div>
 
+                <div className="flex items-center justify-between text-xs text-white/80 mb-3">
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    <span>{getTimeAgo(game.created_at)}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span>Win: ₹{(game.entry_fee * 1.5).toLocaleString()}</span>
+                    <span>Loss: ₹{(game.entry_fee * 0.8).toLocaleString()}</span>
+                  </div>
+                </div>
+
                 {spotsLeft > 0 && (
                   <button
-                    className="mt-3 w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition font-semibold"
+                    className="w-full bg-white/20 hover:bg-white/30 text-white py-2 rounded-lg transition font-semibold border border-white/30 hover:border-white/50"
                     disabled={joiningGameId === game.id}
                     onClick={() => handleJoinGame(game.id)}
                   >
-                    {joiningGameId === game.id ? 'Opening...' : 'Join Game'}
+                    {joiningGameId === game.id ? 'Joining...' : `Join Game (${game.current_players}/${game.max_players})`}
                   </button>
                 )}
               </motion.div>
