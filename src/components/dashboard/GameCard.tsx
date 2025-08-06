@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Users, Clock, Coins } from 'lucide-react';
+import { Play, Users, Clock, Coins, Plus, Gamepad2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import CoinBetGame from '../../game/CoinBetGame';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 interface ActiveGame {
   id: string;
@@ -13,6 +14,7 @@ interface ActiveGame {
 }
 
 const GameCard: React.FC = () => {
+  const navigate = useNavigate();
   const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [joiningGameId, setJoiningGameId] = useState<string | null>(null);
@@ -60,22 +62,11 @@ const GameCard: React.FC = () => {
   };
 
   const handleJoinGame = async (gameId: string) => {
-    try {
-      setJoiningGameId(gameId);
+    navigate(`/lobby/${gameId}`);
+  };
 
-      const { error } = await supabase.rpc('increment_players', {
-        game_id: gameId,
-      });
-
-      if (error) throw error;
-
-      // TODO: Insert into game_players table, or redirect to /game/:id
-      console.log(`Joined game ${gameId}`);
-    } catch (err) {
-      console.error('Failed to join game:', err);
-    } finally {
-      setJoiningGameId(null);
-    }
+  const handleCreateGame = () => {
+    navigate('/create-game');
   };
 
   const getTimeAgo = (dateString: string) => {
@@ -177,11 +168,11 @@ const GameCard: React.FC = () => {
 
                 {spotsLeft > 0 && (
                   <button
-                    className="mt-3 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+                    className="mt-3 w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition font-semibold"
                     disabled={joiningGameId === game.id}
                     onClick={() => handleJoinGame(game.id)}
                   >
-                    {joiningGameId === game.id ? 'Joining...' : 'Join Game'}
+                    {joiningGameId === game.id ? 'Opening...' : 'Join Game'}
                   </button>
                 )}
               </motion.div>
@@ -191,8 +182,31 @@ const GameCard: React.FC = () => {
       </div>
 
       <div className="mt-6">
-        <h4 className="text-white font-semibold text-lg mb-3">Start a New Game</h4>
-        <CoinBetGame />
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-white font-semibold text-lg">Quick Actions</h4>
+        </div>
+        
+        <div className="space-y-3">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleCreateGame}
+            className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg"
+          >
+            <Plus className="w-5 h-5" />
+            Create New Game
+          </motion.button>
+          
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('/user?tab=games')}
+            className="w-full bg-gradient-to-r from-purple-500 to-pink-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-purple-600 hover:to-pink-700 transition-all flex items-center justify-center gap-2 shadow-lg"
+          >
+            <Gamepad2 className="w-5 h-5" />
+            Browse Games
+          </motion.button>
+        </div>
       </div>
     </motion.div>
   );

@@ -10,6 +10,7 @@ import PaymentsPage from "./pages/PaymentsPage";
 import GameLobby from "./game/GameLobby";
 import PlayGamePage from "./pages/PlayGamePage"; // ✅ Import PlayGamePage
 import AdminPage from "./pages/AdminPage";
+import CoinFlipGame from "./components/CoinFlipGame";
 
 function App() {
   useEffect(() => {
@@ -50,6 +51,7 @@ function App() {
           <Route path="/lobby/:id" element={<GameLobby />} />
           <Route path="/play/:id" element={<PlayGamePage />} /> {/* ✅ FIXED: route now accepts :id */}
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/create-game" element={<CoinFlipGame />} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </Router>
