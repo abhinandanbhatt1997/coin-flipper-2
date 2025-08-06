@@ -8,11 +8,11 @@ import UserPage from "./pages/UserPage";
 import GameRoom from "./pages/GameRoom";
 import PaymentsPage from "./pages/PaymentsPage";
 import GameLobby from "./game/GameLobby";
-import PlayGamePage from "./pages/PlayGamePage"; // ✅ FIX: Import this!
+import PlayGamePage from "./pages/PlayGamePage"; // ✅ Import PlayGamePage
 
 function App() {
   useEffect(() => {
-    // 1. Handle OAuth redirect callback
+    // Handle OAuth redirect callback
     const exchangeSession = async () => {
       const { data, error } = await supabase.auth.exchangeCodeForSession();
       if (error) {
@@ -44,14 +44,14 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/user" element={<UserPage />} />
-          <Route path="/game" element={<GameRoom />} />
+          <Route path="/game/:id" element={<GameRoom />} />
           <Route path="/payments" element={<PaymentsPage />} />
           <Route path="/lobby/:id" element={<GameLobby />} />
-          <Route path="/play" element={<PlayGamePage />} /> {/* ✅ FIXED: placed before "*" */}
+          <Route path="/play/:id" element={<PlayGamePage />} /> {/* ✅ FIXED: route now accepts :id */}
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </Router>
-      
+
       <Toaster
         position="top-right"
         toastOptions={{

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
 const GameLobby: React.FC = () => {
@@ -58,8 +58,8 @@ const GameLobby: React.FC = () => {
           setStatus(updated.status);
 
           if (updated.current_players >= updated.max_players) {
-            console.log("Max players reached. Navigating to game room...");
-            navigate(`/game?id=${gameId}`);
+            console.log("Max players reached. Redirecting to game room...");
+            navigate(`/game/${gameId}`);
           }
         }
       )
@@ -137,7 +137,7 @@ const GameLobby: React.FC = () => {
       if (txError.code === "23505") {
         console.warn("User already in game. Redirecting...");
         setJoined(true);
-        navigate(`/game?id=${id}`);
+        navigate(`/game/${gameId}`);
       } else {
         console.error(txError);
         alert("Error joining game");
@@ -148,7 +148,7 @@ const GameLobby: React.FC = () => {
 
     console.log("Successfully joined game. Redirecting...");
     setJoined(true);
-    navigate(`/game?id=${id}`);
+    navigate(`/game/${gameId}`);
   };
 
   if (!validGame) {

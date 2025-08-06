@@ -7,6 +7,7 @@ import GameCategories from "../components/GameCategories";
 import { motion } from "framer-motion";
 import { LogOut, Wallet, Trophy, History, User } from "lucide-react";
 import { signOut } from "../lib/supabase";
+import TransactionHistory from "../components/dashboard/TransactionHistory";
 import toast from "react-hot-toast";
 
 const UserPage: React.FC = () => {
@@ -26,7 +27,7 @@ const UserPage: React.FC = () => {
       toast.error("Insufficient balance!");
       return;
     }
-    navigate('/game?category=${category.name}&amount=${category.amount}');
+    navigate(`/game?category=${category.name}&amount=${category.amount}`);
   };
 
   const handleSignOut = async () => {
@@ -130,7 +131,7 @@ const UserPage: React.FC = () => {
                 activeTab === tab.id
                   ? 'bg-white/20 text-white shadow-lg'
                   : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80'
-               }`}
+              }`}
             >
               <tab.icon className="w-5 h-5" />
               {tab.label}
@@ -213,8 +214,8 @@ const UserPage: React.FC = () => {
                   Track your wins, losses, and statistics
                 </motion.p>
               </div>
-              <div className="max-w-4xl mx-auto">
-                <Dashboard />
+              <div className="max-w-4xl mx-auto mt-6">
+                <TransactionHistory userId={user.id} />
               </div>
             </div>
           )}
@@ -225,3 +226,4 @@ const UserPage: React.FC = () => {
 };
 
 export default UserPage;
+

@@ -1,272 +1,204 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+// 💎 Enhanced GameRoom.tsx with elegant UI & animation
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../hooks/useAuth';
-import { useUserData } from '../hooks/useUserData';
-import CoinFlipGame from '../components/CoinFlipGame';
-import toast from 'react-hot-toast';
-
-interface Player {
-  id: string;
-  name: string;
-  avatar: string;
-}
-
-interface GameState {
-  id: string;
-  category: string;
-  entryFee: number;
-  players: Player[];
-  maxPlayers: number;
-  status: 'waiting' | 'flipping' | 'completed';
-  winner?: Player;
-}
+import '../styles/game.css';
+import { placeBetAndLog, applyPayoutAndLog } from '../utils/wallet';
+import { motion } from 'framer-motion';
 
 const GameRoom: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { user } = useAuth();
-  const { userData, refetch } = useUserData(user?.id);
-  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [status, setStatus] = useState<string | null>(null);
+  const [players, setPlayers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const category = searchParams.get('category');
-  const amount = parseInt(searchParams.get('amount') || '0');
+  const [screen, setScreen] = useState("investment");
+  const [selectedBet, setSelectedBet] = useState(0);
+  const [currentBet, setCurrentBet] = useState(0);
+  const [result, setResult] = useState<{ isWinner: boolean; payout: number; winnerPlayer: number } | null>(null);
+  const [userId, setUserId] = useState<string>('');
 
   useEffect(() => {
-    if (!user || !userData || !category || !amount) {
-      navigate('/user');
-      return;
-    }
+    const fetchData = async () => {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (userData.wallet_balance < amount) {
-      toast.error('Insufficient balance!');
-      navigate('/user');
-      return;
-    }
-
-    joinOrCreateGame();
-  }, [user, userData, category, amount]);
-
-  const joinOrCreateGame = async () => {
-    if (!user || !userData) return;
-
-    try {
-      setLoading(true);
-
-      // Check if user already has sufficient balance
-      if (userData.wallet_balance < amount) {
-        toast.error('Insufficient balance!');
-        navigate('/user');
+      if (userError || !user) {
+        setLoading(false);
         return;
       }
+      setUserId(user.id);
 
-      // Deduct entry fee from wallet
-      const newBalance = userData.wallet_balance - amount;
-      const { error: balanceError } = await supabase
-        .from('users')
-        .update({ wallet_balance: newBalance })
-        .eq('id', user.id);
+      const { data: walletData } = await supabase.from('users').select('wallet_balance').eq('id', user.id).single();
+      setWalletBalance(walletData?.wallet_balance || 0);
 
-      if (balanceError) throw balanceError;
+      const { data: gameData } = await supabase.from('games').select('status').eq('id', id).single();
+      setStatus(gameData?.status ?? "unknown");
 
-      // Create transaction record
-      await supabase.from('transactions').insert({
-        user_id: user.id,
-        type: 'game_entry',
-        amount: -amount,
-        status: 'completed',
-        reference_id: `game_entry_${Date.now()}`
-      });
-
-      // Find or create game
-      let { data: existingGame } = await supabase
-        .from('games')
-        .select('*')
-        .eq('status', 'waiting')
-        .eq('entry_fee', amount)
-        .lt('current_players', 10)
-        .order('created_at')
-        .limit(1)
-        .single();
-
-      let gameId: string;
-
-      if (!existingGame) {
-        // Create new game
-        const { data: newGame, error: gameError } = await supabase
-          .from('games')
-          .insert({
-            entry_fee: amount,
-            max_players: 10,
-            current_players: 0,
-            status: 'waiting'
-          })
-          .select()
-          .single();
-
-        if (gameError) throw gameError;
-        gameId = newGame.id;
-      } else {
-        gameId = existingGame.id;
-      }
-
-      // Join game
-      const { error: participantError } = await supabase
-        .from('game_participants')
-        .insert({
-          game_id: gameId,
-          user_id: user.id,
-          amount_paid: amount
-        });
-
-      if (participantError) throw participantError;
-
-      // Update game player count
-      const { data: participants } = await supabase
-        .from('game_participants')
-        .select('user_id, users(email)')
-        .eq('game_id', gameId);
-
-      const playerCount = participants?.length || 0;
-
-      await supabase
-        .from('games')
-        .update({ current_players: playerCount })
-        .eq('id', gameId);
-
-      // Set initial game state
-      const players: Player[] = participants?.map((p: any, index: number) => ({
-        id: p.user_id,
-        name: p.users?.email?.split('@')[0] || `Player ${index + 1}`,
-        avatar: ''
-      })) || [];
-
-      setGameState({
-        id: gameId,
-        category: category || '',
-        entryFee: amount,
-        players,
-        maxPlayers: 10,
-        status: playerCount >= 10 ? 'flipping' : 'waiting'
-      });
-
-      // Subscribe to game updates
-      const subscription = supabase
-        .channel(`game-${gameId}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'game_participants',
-          filter: `game_id=eq.${gameId}`
-        }, async () => {
-          // Refresh game state
-          const { data: updatedParticipants } = await supabase
-            .from('game_participants')
-            .select('user_id, users(email)')
-            .eq('game_id', gameId);
-
-          const updatedPlayers: Player[] = updatedParticipants?.map((p: any, index: number) => ({
-            id: p.user_id,
-            name: p.users?.email?.split('@')[0] || `Player ${index + 1}`,
-            avatar: ''
-          })) || [];
-
-          setGameState(prev => prev ? {
-            ...prev,
-            players: updatedPlayers,
-            status: updatedPlayers.length >= 10 ? 'flipping' : 'waiting'
-          } : null);
-        })
-        .subscribe();
-
-      return () => {
-        subscription.unsubscribe();
-      };
-
-    } catch (error: any) {
-      console.error('Error joining game:', error);
-      toast.error('Failed to join game');
-      navigate('/user');
-    } finally {
+      const { data: participantData } = await supabase.from('game_participants').select('user_id').eq('game_id', id);
+      setPlayers(participantData?.map((p) => p.user_id) || []);
       setLoading(false);
+    };
+
+    fetchData();
+  }, [id]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`realtime:game:${id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${id}` }, (payload) => {
+        setStatus(payload.new.status);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_participants', filter: `game_id=eq.${id}` }, (payload) => {
+        setPlayers((prev) => [...new Set([...prev, payload.new.user_id])]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id]);
+
+  const handleSelectBet = (amount: number) => {
+    if (amount > walletBalance) {
+      alert(`Insufficient funds! You have ₹${walletBalance}`);
+      return;
     }
+    setSelectedBet(amount);
   };
 
-  const handleGameComplete = async (winner: Player, payout: number) => {
-    if (!gameState || !user) return;
-
-    try {
-      // Update game status
-      await supabase
-        .from('games')
-        .update({
-          status: 'completed',
-          winner_id: winner.id,
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', gameState.id);
-
-      // Process payouts
-      for (const player of gameState.players) {
-        const isWinner = player.id === winner.id;
-        const playerPayout = isWinner ? gameState.entryFee * 1.5 : gameState.entryFee * 0.8;
-
-        // Update participant record
-        await supabase
-          .from('game_participants')
-          .update({
-            is_winner: isWinner,
-            amount_won: playerPayout
-          })
-          .eq('game_id', gameState.id)
-          .eq('user_id', player.id);
-
-        // Don't update wallet balance here - let payments page handle it
-      }
-
-      setGameState(prev => prev ? { ...prev, winner, status: 'completed' } : null);
-      
-      if (winner.id === user.id) {
-        toast.success(`🎉 You won ₹${payout.toLocaleString()}!`);
-      } else {
-        toast.success(`You received ₹${(gameState.entryFee * 0.8).toLocaleString()} back`);
-      }
-
-      // Navigate to payments page instead of refreshing
-      setTimeout(() => {
-        navigate(`/payments?gameId=${gameState.id}&winner=${winner.id === user.id}&amount=${winner.id === user.id ? payout : gameState.entryFee * 0.8}`);
-      }, 3000);
-
-    } catch (error: any) {
-      console.error('Error completing game:', error);
-      toast.error('Error processing game results');
+  const confirmBet = async () => {
+    if (selectedBet > walletBalance) {
+      alert("Insufficient funds!");
+      return;
     }
+    const success = await placeBetAndLog(userId, id!, selectedBet);
+    if (!success) return;
+    setWalletBalance((prev) => prev - selectedBet);
+    setCurrentBet(selectedBet);
+    setScreen("game");
   };
 
-  const handleLeaveGame = () => {
-    navigate('/user');
+  const playGame = async () => {
+    setScreen("coin");
+    setTimeout(async () => {
+      const isWinner = Math.random() < 0.5;
+      const payout = isWinner ? currentBet * 1.5 : currentBet * 0.8;
+      const winnerPlayer = Math.floor(Math.random() * 10) + 1;
+      const success = await applyPayoutAndLog(userId, id!, payout, isWinner);
+      if (!success) return;
+      setWalletBalance((prev) => prev + payout);
+      setResult({ isWinner, payout, winnerPlayer });
+      setScreen("result");
+    }, 2000);
   };
 
-  if (loading || !gameState) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full"
-        />
-      </div>
-    );
+  const resetGame = () => {
+    setSelectedBet(0);
+    setCurrentBet(0);
+    setResult(null);
+    setScreen("investment");
+  };
+
+  if (loading) {
+    return <div className="h-screen flex items-center justify-center text-white bg-black">Loading...</div>;
   }
 
   return (
-    <CoinFlipGame
-      gameState={gameState}
-      onGameComplete={handleGameComplete}
-      onLeaveGame={handleLeaveGame}
-    />
+    <div className="min-h-screen text-white bg-gradient-to-b from-black via-gray-900 to-black p-6">
+      <div className="flex justify-between items-center mb-4">
+        <motion.h1 className="text-3xl font-bold text-yellow-400" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          Game Room #{id?.slice(0, 6)}
+        </motion.h1>
+        <button
+          onClick={() => navigate('/user')}
+          className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-xl"
+        >
+          🔙 Exit
+        </button>
+      </div>
+
+      <motion.div
+        className="text-sm text-gray-400 mb-4"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        Wallet: ₹{walletBalance.toFixed(2)} • Status: <span className="text-white font-semibold">{status}</span>
+      </motion.div>
+
+      <div className="max-w-2xl mx-auto">
+        {screen === "investment" && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <h2 className="text-xl text-center mb-4">Select Your Bet</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+              {[10, 50, 100, 500].map((amount) => (
+                <div
+                  key={amount}
+                  onClick={() => handleSelectBet(amount)}
+                  className={`p-4 rounded-xl cursor-pointer text-center bg-white/10 hover:bg-white/20 transition ${
+                    selectedBet === amount ? "ring-2 ring-blue-400" : ""
+                  }`}
+                >
+                  ₹{amount}
+                </div>
+              ))}
+            </div>
+            <div className="text-center">
+              <button
+                className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-xl"
+                onClick={confirmBet}
+                disabled={!selectedBet}
+              >
+                Confirm Bet
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {screen === "game" && (
+          <motion.div className="text-center mt-10" initial={{ scale: 0.9 }} animate={{ scale: 1 }}>
+            <h2 className="text-lg mb-4">You bet ₹{currentBet}</h2>
+            <motion.button
+              onClick={playGame}
+              className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-8 rounded-xl pulse-animation"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              🎲 Flip Coin
+            </motion.button>
+          </motion.div>
+        )}
+
+        {screen === "coin" && (
+          <motion.div className="text-center mt-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <h2 className="text-xl mb-4 animate-pulse">Flipping...</h2>
+            <motion.img
+              src="https://img.icons8.com/color/100/000000/coin.png"
+              alt="coin"
+              className="mx-auto w-24 h-24 animate-spin"
+            />
+          </motion.div>
+        )}
+
+        {screen === "result" && result && (
+          <motion.div className="text-center mt-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <h2 className={`text-2xl font-bold mb-4 ${result.isWinner ? "text-green-400" : "text-red-400"}`}>
+              {result.isWinner ? "🎉 You Win!" : "😢 You Lose!"}
+            </h2>
+            <p className="text-lg mb-4">
+              {result.isWinner ? `Payout: ₹${result.payout.toFixed(2)}` : `Refund: ₹${result.payout.toFixed(2)}`}
+            </p>
+            <div className="flex justify-center gap-4">
+              <button className="bg-blue-600 text-white py-2 px-6 rounded-xl" onClick={resetGame}>Play Again</button>
+              <button className="bg-gray-600 text-white py-2 px-6 rounded-xl" onClick={() => navigate('/user')}>Exit</button>
+            </div>
+          </motion.div>
+        )}
+      </div>
+    </div>
   );
 };
 
