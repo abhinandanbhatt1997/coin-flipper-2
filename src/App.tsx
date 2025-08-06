@@ -9,6 +9,7 @@ import GameRoom from "./pages/GameRoom";
 import PaymentsPage from "./pages/PaymentsPage";
 import GameLobby from "./game/GameLobby";
 import PlayGamePage from "./pages/PlayGamePage"; // ✅ Import PlayGamePage
+import AdminPage from "./pages/AdminPage";
 
 function App() {
   useEffect(() => {
@@ -48,6 +49,7 @@ function App() {
           <Route path="/payments" element={<PaymentsPage />} />
           <Route path="/lobby/:id" element={<GameLobby />} />
           <Route path="/play/:id" element={<PlayGamePage />} /> {/* ✅ FIXED: route now accepts :id */}
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </Router>

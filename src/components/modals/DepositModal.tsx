@@ -12,7 +12,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
   const [amount, setAmount] = useState<number>(500);
   const [loading, setLoading] = useState(false);
 
-  const predefinedAmounts = [100, 500, 1000, 2000, 5000];
+  const predefinedAmounts = [100, 500, 1000, 2000, 5000, 10000];
 
   const handleDeposit = async () => {
     if (amount < 100) {
@@ -104,13 +104,13 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
                 <button
                   key={preAmount}
                   onClick={() => setAmount(preAmount)}
-                  className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                  className={`py-3 px-3 rounded-lg text-sm font-medium transition-all ${
                     amount === preAmount
-                      ? 'bg-green-500 text-white'
-                      : 'bg-white/10 text-white/80 hover:bg-white/20'
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg'
+                      : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/20'
                   }`}
                 >
-                  ₹{preAmount}
+                  ₹{preAmount.toLocaleString()}
                 </button>
               ))}
             </div>
@@ -125,9 +125,12 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
               value={amount}
               onChange={(e) => setAmount(Number(e.target.value))}
               min="100"
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg font-semibold"
               placeholder="Enter amount"
             />
+            <div className="text-white/60 text-xs mt-1">
+              Minimum deposit: ₹100
+            </div>
           </div>
 
           <div className="flex gap-3 pt-4">
@@ -140,7 +143,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
             <button
               onClick={handleDeposit}
               disabled={loading || amount < 100}
-              className="flex-1 py-3 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+              className="flex-1 py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium flex items-center justify-center gap-2 shadow-lg"
             >
               {loading ? (
                 <>
@@ -148,7 +151,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
                   Processing...
                 </>
               ) : (
-                `Add ₹${amount}`
+                `Add ₹${amount.toLocaleString()}`
               )}
             </button>
           </div>
