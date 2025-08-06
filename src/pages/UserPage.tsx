@@ -5,7 +5,7 @@ import { useUserData } from "../hooks/useUserData";
 import Dashboard from "../components/Dashboard";
 import GameCategories from "../components/GameCategories";
 import { motion } from "framer-motion";
-import { LogOut, Wallet, Trophy, History, User, Settings, Home, Play, CreditCard, Shield } from "lucide-react";
+import { LogOut, Wallet, Trophy, History, User, Settings, Home, Play, CreditCard, Shield, Bell, Star, TrendingUp, Users, GamepadIcon } from "lucide-react";
 import { signOut } from "../lib/supabase";
 import TransactionHistory from "../components/dashboard/TransactionHistory";
 import toast from "react-hot-toast";
@@ -24,10 +24,11 @@ const UserPage: React.FC = () => {
 
   const handleSelectCategory = (category: any) => {
     if (!userData || userData.wallet_balance < category.amount) {
-      toast.error("Insufficient balance!");
+      toast.error("Insufficient balance! Please add money to your wallet.");
+      setActiveTab('wallet');
       return;
     }
-    navigate(`/game?category=${category.name}&amount=${category.amount}`);
+    navigate(`/play/${category.id}?amount=${category.amount}&category=${category.name}`);
   };
 
   const handleSignOut = async () => {
@@ -70,87 +71,115 @@ const UserPage: React.FC = () => {
   }
 
   const tabs = [
-    { id: 'home', label: 'Home', icon: Home },
-    { id: 'games', label: 'Play Games', icon: Trophy },
-    { id: 'wallet', label: 'Dashboard', icon: Wallet },
-    { id: 'history', label: 'History', icon: History },
-    { id: 'settings', label: 'Settings', icon: Settings }
+    { id: 'home', label: 'Home', icon: Home, color: 'from-blue-500 to-cyan-500' },
+    { id: 'games', label: 'Play Games', icon: Trophy, color: 'from-purple-500 to-pink-500' },
+    { id: 'wallet', label: 'Wallet', icon: Wallet, color: 'from-green-500 to-emerald-500' },
+    { id: 'history', label: 'History', icon: History, color: 'from-orange-500 to-red-500' },
+    { id: 'settings', label: 'Settings', icon: Settings, color: 'from-gray-500 to-slate-600' }
   ];
+
+  const isAdmin = user?.email?.includes('admin');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
       {/* Header */}
-      <div className="bg-white/10 backdrop-blur-lg border-b border-white/20 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <motion.h1 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="text-2xl font-bold text-white bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-clip-text text-transparent"
-            >
-              Coin Flip Fortune
-            </motion.h1>
-            <div className="flex items-center gap-2 bg-white/10 rounded-full px-4 py-2">
-              <Wallet className="w-5 h-5 text-green-400" />
-              <span className="text-white font-semibold">
-                ₹{userData.wallet_balance.toLocaleString()}
-              </span>
+      <div className="bg-black/20 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg"
+              >
+                <GamepadIcon className="w-6 h-6 text-white" />
+              </motion.div>
+              <div>
+                <motion.h1 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="text-2xl font-bold text-white"
+                >
+                  Coin Flip Fortune
+                </motion.h1>
+                <p className="text-white/60 text-sm">Ultimate Gaming Experience</p>
+              </div>
             </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            {/* Quick Action Buttons */}
-            <div className="hidden md:flex items-center gap-2">
-              <motion.button
+            
+            <div className="flex items-center gap-4">
+              {/* Wallet Balance */}
+              <motion.div 
                 whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setActiveTab('games')}
-                className="flex items-center gap-2 px-3 py-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-colors"
+                className="flex items-center gap-2 bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-lg rounded-full px-4 py-2 border border-green-500/30"
               >
-                <Play className="w-4 h-4" />
-                <span className="text-sm">Play</span>
-              </motion.button>
-              
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setActiveTab('wallet')}
-                className="flex items-center gap-2 px-3 py-2 bg-green-500/20 text-green-300 rounded-lg hover:bg-green-500/30 transition-colors"
-              >
-                <CreditCard className="w-4 h-4" />
-                <span className="text-sm">Wallet</span>
-              </motion.button>
-              
-              {user?.email?.includes('admin') && (
+                <Wallet className="w-5 h-5 text-green-400" />
+                <span className="text-white font-semibold">
+                  ₹{userData.wallet_balance.toLocaleString()}
+                </span>
+              </motion.div>
+
+              {/* Quick Actions */}
+              <div className="hidden md:flex items-center gap-2">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => navigate('/admin')}
-                  className="flex items-center gap-2 px-3 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors"
+                  onClick={() => setActiveTab('games')}
+                  className="flex items-center gap-2 px-3 py-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-colors border border-purple-500/30"
                 >
-                  <Shield className="w-4 h-4" />
-                  <span className="text-sm">Admin</span>
+                  <Play className="w-4 h-4" />
+                  <span className="text-sm font-medium">Play</span>
                 </motion.button>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-2 text-white/80">
-              <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                <User className="w-4 h-4" />
+                
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setActiveTab('wallet')}
+                  className="flex items-center gap-2 px-3 py-2 bg-green-500/20 text-green-300 rounded-lg hover:bg-green-500/30 transition-colors border border-green-500/30"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span className="text-sm font-medium">Wallet</span>
+                </motion.button>
+                
+                {isAdmin && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => navigate('/admin')}
+                    className="flex items-center gap-2 px-3 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors border border-red-500/30"
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span className="text-sm font-medium">Admin</span>
+                  </motion.button>
+                )}
               </div>
-              <span className="hidden sm:block">
-                {userData.email?.split('@')[0] || 'Player'}
-              </span>
+              
+              {/* User Menu */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-white/80">
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full flex items-center justify-center border border-purple-500/30">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <div className="hidden sm:block">
+                    <div className="text-sm font-medium text-white">
+                      {userData.email?.split('@')[0] || 'Player'}
+                    </div>
+                    <div className="text-xs text-white/60">
+                      {isAdmin ? 'Administrator' : 'Player'}
+                    </div>
+                  </div>
+                </div>
+                
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleSignOut}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors border border-red-500/30"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="hidden sm:block text-sm font-medium">Sign Out</span>
+                </motion.button>
+              </div>
             </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleSignOut}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:block">Sign Out</span>
-            </motion.button>
           </div>
         </div>
       </div>
@@ -164,10 +193,10 @@ const UserPage: React.FC = () => {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all whitespace-nowrap shadow-lg ${
+              className={`flex items-center gap-3 px-6 py-4 rounded-2xl font-semibold transition-all whitespace-nowrap shadow-lg border ${
                 activeTab === tab.id
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-purple-500/25'
-                  : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80'
+                  ? `bg-gradient-to-r ${tab.color} text-white shadow-lg border-white/20`
+                  : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80 border-white/10'
               }`}
             >
               <tab.icon className="w-5 h-5" />
@@ -185,11 +214,12 @@ const UserPage: React.FC = () => {
         >
           {activeTab === 'home' && (
             <div>
+              {/* Welcome Section */}
               <div className="text-center mb-8">
                 <motion.h2 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-4xl font-bold text-white mb-4 bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-clip-text text-transparent"
+                  className="text-5xl font-bold text-white mb-4 bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-clip-text text-transparent"
                 >
                   Welcome Back, {userData.email?.split('@')[0] || 'Player'}!
                 </motion.h2>
@@ -197,14 +227,14 @@ const UserPage: React.FC = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="text-white/80 text-lg"
+                  className="text-white/80 text-xl"
                 >
                   Ready to test your luck? Choose your adventure below!
                 </motion.p>
               </div>
               
               {/* Quick Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -242,11 +272,25 @@ const UserPage: React.FC = () => {
                   className="bg-gradient-to-br from-blue-500/20 to-cyan-600/20 backdrop-blur-lg rounded-2xl p-6 border border-blue-500/30"
                 >
                   <div className="flex items-center gap-3 mb-3">
-                    <History className="w-8 h-8 text-blue-400" />
+                    <TrendingUp className="w-8 h-8 text-blue-400" />
                     <h3 className="text-white font-semibold">Win Rate</h3>
                   </div>
                   <div className="text-3xl font-bold text-blue-400">0%</div>
                   <p className="text-blue-300/80 text-sm mt-1">Success ratio</p>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="bg-gradient-to-br from-yellow-500/20 to-orange-600/20 backdrop-blur-lg rounded-2xl p-6 border border-yellow-500/30"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <Star className="w-8 h-8 text-yellow-400" />
+                    <h3 className="text-white font-semibold">Total Winnings</h3>
+                  </div>
+                  <div className="text-3xl font-bold text-yellow-400">₹0</div>
+                  <p className="text-yellow-300/80 text-sm mt-1">Lifetime earnings</p>
                 </motion.div>
               </div>
               
@@ -255,8 +299,8 @@ const UserPage: React.FC = () => {
                 <motion.button
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.5 }}
-                  whileHover={{ scale: 1.02 }}
+                  transition={{ delay: 0.6 }}
+                  whileHover={{ scale: 1.02, y: -5 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setActiveTab('games')}
                   className="bg-gradient-to-br from-purple-500/20 to-pink-600/20 backdrop-blur-lg rounded-2xl p-8 border border-purple-500/30 hover:border-purple-400/50 transition-all group"
@@ -275,8 +319,8 @@ const UserPage: React.FC = () => {
                 <motion.button
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.6 }}
-                  whileHover={{ scale: 1.02 }}
+                  transition={{ delay: 0.7 }}
+                  whileHover={{ scale: 1.02, y: -5 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setActiveTab('wallet')}
                   className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 backdrop-blur-lg rounded-2xl p-8 border border-green-500/30 hover:border-green-400/50 transition-all group"
@@ -301,7 +345,7 @@ const UserPage: React.FC = () => {
                 <motion.h2 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-3xl font-bold text-white mb-2"
+                  className="text-4xl font-bold text-white mb-4"
                 >
                   Choose Your Game
                 </motion.h2>
@@ -309,7 +353,7 @@ const UserPage: React.FC = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="text-white/80"
+                  className="text-white/80 text-lg"
                 >
                   Select a category and test your luck!
                 </motion.p>
@@ -327,17 +371,17 @@ const UserPage: React.FC = () => {
                 <motion.h2 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-3xl font-bold text-white mb-2"
+                  className="text-4xl font-bold text-white mb-4"
                 >
-                  Dashboard
+                  Wallet Dashboard
                 </motion.h2>
                 <motion.p 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="text-white/80"
+                  className="text-white/80 text-lg"
                 >
-                  Manage your wallet and view active games
+                  Manage your funds and view active games
                 </motion.p>
               </div>
               <Dashboard />
@@ -350,7 +394,7 @@ const UserPage: React.FC = () => {
                 <motion.h2 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-3xl font-bold text-white mb-2"
+                  className="text-4xl font-bold text-white mb-4"
                 >
                   Game History
                 </motion.h2>
@@ -358,7 +402,7 @@ const UserPage: React.FC = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="text-white/80"
+                  className="text-white/80 text-lg"
                 >
                   Track your wins, losses, and statistics
                 </motion.p>
@@ -375,7 +419,7 @@ const UserPage: React.FC = () => {
                 <motion.h2 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-3xl font-bold text-white mb-2"
+                  className="text-4xl font-bold text-white mb-4"
                 >
                   Account Settings
                 </motion.h2>
@@ -383,7 +427,7 @@ const UserPage: React.FC = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="text-white/80"
+                  className="text-white/80 text-lg"
                 >
                   Manage your account preferences and security
                 </motion.p>
@@ -487,4 +531,3 @@ const UserPage: React.FC = () => {
 };
 
 export default UserPage;
-
