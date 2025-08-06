@@ -571,7 +571,7 @@ const GameRoom: React.FC = () => {
               >
                 <Home className="w-5 h-5" />
                 Dashboard
-              </button>
+              </motion.button>
             </div>
           </motion.div>
         )}
