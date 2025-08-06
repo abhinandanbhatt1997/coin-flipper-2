@@ -177,14 +177,6 @@ const GameLobby: React.FC = () => {
     setJoining(true);
 
     try {
-      // Deduct entry fee from wallet
-      const { error: walletError } = await supabase
-        .from('users')
-        .update({ wallet_balance: walletBalance - gameData.entry_fee })
-        .eq('id', user.id);
-
-      if (walletError) throw walletError;
-
       // Add participant
       const { error: participantError } = await supabase
         .from('game_participants')
@@ -204,22 +196,12 @@ const GameLobby: React.FC = () => {
 
       if (gameError) throw gameError;
 
-      // Log transaction
-      await supabase.from('transactions').insert({
-        user_id: user.id,
-        type: 'game_entry',
-        amount: -gameData.entry_fee,
-        status: 'completed',
-        reference_id: gameData.id
-      });
-
-      setWalletBalance(prev => prev - gameData.entry_fee);
       setJoined(true);
       toast.success('Successfully joined the game!');
 
       // Auto-redirect if game is full
       if (gameData.current_players + 1 >= gameData.max_players) {
-        setTimeout(() => navigate(`/game/${id}`), 1000);
+        setTimeout(() => navigate(`/game/${id}`), 2000);
       }
 
     } catch (error) {

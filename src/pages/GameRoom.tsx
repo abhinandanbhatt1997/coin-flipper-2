@@ -93,7 +93,7 @@ const GameRoom: React.FC = () => {
           setShowConfetti(true);
           setTimeout(() => setShowConfetti(false), 5000);
         }
-      } else if (gameData.current_players >= gameData.max_players) {
+      } else if (gameData.current_players >= gameData.max_players && gameData.status === 'waiting') {
         setGamePhase('starting');
         startCountdown();
       }

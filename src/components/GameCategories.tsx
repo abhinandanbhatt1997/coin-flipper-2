@@ -1,6 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Zap, Diamond, Wrench, Star, Crown, Gem, Play, TrendingUp, Users } from 'lucide-react';
+import { Zap, Diamond, Wrench, Star, Crown, Gem, Play, TrendingUp, Users, Loader, Trophy } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 interface GameCategory {
   id: string;
@@ -77,15 +81,176 @@ const categories: GameCategory[] = [
 ];
 
 interface GameCategoriesProps {
-  onSelectCategory: (category: GameCategory) => void;
   userBalance: number;
 }
 
-const GameCategories: React.FC<GameCategoriesProps> = ({ onSelectCategory, userBalance }) => {
+interface ActiveGame {
+  id: string;
+  entry_fee: number;
+  current_players: number;
+  max_players: number;
+  created_at: string;
+}
+
+const GameCategories: React.FC<GameCategoriesProps> = ({ userBalance }) => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [activeGames, setActiveGames] = useState<{ [key: number]: ActiveGame }>({});
+  const [joiningGame, setJoiningGame] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchActiveGames();
+    
+    // Set up real-time subscription for active games
+    const subscription = supabase
+      .channel('active-games-categories')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'games',
+          filter: 'status=eq.waiting',
+        },
+        () => {
+          fetchActiveGames();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'game_participants',
+        },
+        () => {
+          fetchActiveGames();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const fetchActiveGames = async () => {
+    try {
+      const { data: games, error } = await supabase
+        .from('games')
+        .select('id, entry_fee, current_players, max_players, created_at')
+        .eq('status', 'waiting')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      // Group games by entry fee (keep only the oldest game for each fee)
+      const gamesByFee: { [key: number]: ActiveGame } = {};
+      games?.forEach(game => {
+        if (!gamesByFee[game.entry_fee] || new Date(game.created_at) < new Date(gamesByFee[game.entry_fee].created_at)) {
+          gamesByFee[game.entry_fee] = game;
+        }
+      });
+
+      setActiveGames(gamesByFee);
+    } catch (error) {
+      console.error('Error fetching active games:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleJoinGame = async (category: GameCategory) => {
+    if (!user) {
+      toast.error('Please log in first');
+      navigate('/login');
+      return;
+    }
+
+    if (userBalance < category.amount) {
+      toast.error('Insufficient wallet balance!');
+      return;
+    }
+
+    setJoiningGame(category.id);
+
+    try {
+      // Check if user has sufficient balance
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('wallet_balance')
+        .eq('id', user.id)
+        .single();
+
+      if (userError || !userData || userData.wallet_balance < category.amount) {
+        toast.error('Insufficient wallet balance!');
+        return;
+      }
+
+      // Use the RPC function to auto-join or create game
+      const { data: gameId, error: rpcError } = await supabase
+        .rpc('auto_join_or_create_game', {
+          _user_id: user.id,
+          _entry_fee: category.amount,
+          _max_players: 10
+        });
+
+      if (rpcError) throw rpcError;
+
+      if (!gameId) {
+        toast.error('Failed to join or create game');
+        return;
+      }
+
+      // Deduct entry fee from wallet
+      const { error: walletError } = await supabase
+        .from('users')
+        .update({ wallet_balance: userData.wallet_balance - category.amount })
+        .eq('id', user.id);
+
+      if (walletError) throw walletError;
+
+      // Log the transaction
+      await supabase.from('transactions').insert({
+        user_id: user.id,
+        type: 'game_entry',
+        amount: -category.amount,
+        status: 'completed',
+        reference_id: gameId
+      });
+
+      toast.success(`Joined ${category.name} game successfully!`);
+      
+      // Navigate to game lobby
+      navigate(`/lobby/${gameId}`);
+
+    } catch (error: any) {
+      console.error('Error joining game:', error);
+      toast.error(error.message || 'Failed to join game');
+    } finally {
+      setJoiningGame(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 p-6">
       {categories.map((category, index) => {
         const canAfford = userBalance >= category.amount;
+        const activeGame = activeGames[category.amount];
+        const isJoining = joiningGame === category.id;
         
         return (
           <motion.div
@@ -93,12 +258,12 @@ const GameCategories: React.FC<GameCategoriesProps> = ({ onSelectCategory, userB
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1, duration: 0.5 }}
-            whileHover={canAfford ? { scale: 1.05, y: -8 } : {}}
-            whileTap={canAfford ? { scale: 0.95 } : {}}
+            whileHover={canAfford && !isJoining ? { scale: 1.05, y: -8 } : {}}
+            whileTap={canAfford && !isJoining ? { scale: 0.95 } : {}}
             className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${category.gradient} p-8 cursor-pointer shadow-2xl border border-white/20 backdrop-blur-sm ${
               !canAfford ? 'opacity-60' : ''
             }`}
-            onClick={() => canAfford && onSelectCategory(category)}
+            onClick={() => canAfford && !isJoining && handleJoinGame(category)}
           >
             {/* Animated background effects */}
             <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/10 pointer-events-none" />
@@ -128,6 +293,30 @@ const GameCategories: React.FC<GameCategoriesProps> = ({ onSelectCategory, userB
                   {category.description}
                 </p>
               </div>
+
+              {/* Active Game Info */}
+              {activeGame && (
+                <div className="mb-4 bg-white/10 rounded-lg p-3 backdrop-blur-sm border border-white/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-white/90 text-sm">
+                      <Users className="w-4 h-4" />
+                      <span>Active Game</span>
+                    </div>
+                    <div className="text-white font-semibold">
+                      {activeGame.current_players}/{activeGame.max_players}
+                    </div>
+                  </div>
+                  <div className="w-full bg-white/20 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-white/60 to-white/80 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(activeGame.current_players / activeGame.max_players) * 100}%` }}
+                    />
+                  </div>
+                  <div className="text-white/70 text-xs mt-1">
+                    {activeGame.max_players - activeGame.current_players} spots left
+                  </div>
+                </div>
+              )}
               
               {/* Game Info */}
               <div className="space-y-3 mb-6">
@@ -158,21 +347,37 @@ const GameCategories: React.FC<GameCategoriesProps> = ({ onSelectCategory, userB
                 </div>
               </div>
               
-              {/* Play Button */}
+              {/* Join Button */}
               <motion.div 
                 className="mt-6"
-                whileHover={canAfford ? { scale: 1.02 } : {}}
+                whileHover={canAfford && !isJoining ? { scale: 1.02 } : {}}
               >
                 <div className={`text-center py-4 px-6 rounded-xl font-bold text-lg border-2 transition-all ${
-                  canAfford 
+                  isJoining
+                    ? 'bg-blue-500/30 border-blue-400/50 text-blue-200'
+                    : canAfford 
                     ? 'bg-white/20 border-white/30 text-white hover:bg-white/30 hover:border-white/50' 
                     : 'bg-black/30 border-red-500/50 text-red-300'
                 }`}>
                   <div className="flex items-center justify-center gap-2">
-                    <Play className="w-5 h-5" />
-                    <span>
-                      {canAfford ? 'PLAY NOW' : 'INSUFFICIENT BALANCE'}
-                    </span>
+                    {isJoining ? (
+                      <>
+                        <Loader className="w-5 h-5 animate-spin" />
+                        <span>JOINING...</span>
+                      </>
+                    ) : canAfford ? (
+                      <>
+                        <Play className="w-5 h-5" />
+                        <span>
+                          {activeGame ? `JOIN GAME (${activeGame.current_players}/10)` : 'START NEW GAME'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Trophy className="w-5 h-5" />
+                        <span>INSUFFICIENT BALANCE</span>
+                      </>
+                    )}
                   </div>
                   {!canAfford && (
                     <div className="text-xs mt-1 text-red-300/80">

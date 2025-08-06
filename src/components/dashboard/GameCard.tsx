@@ -62,7 +62,81 @@ const GameCard: React.FC = () => {
   };
 
   const handleJoinGame = async (gameId: string) => {
-    navigate(`/lobby/${gameId}`);
+    setJoiningGameId(gameId);
+    
+    try {
+      if (!user) {
+        toast.error('Please log in first');
+        navigate('/login');
+        return;
+      }
+
+      // Get game details
+      const { data: gameData, error: gameError } = await supabase
+        .from('games')
+        .select('entry_fee, current_players, max_players')
+        .eq('id', gameId)
+        .single();
+
+      if (gameError || !gameData) {
+        toast.error('Game not found');
+        return;
+      }
+
+      // Check user balance
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('wallet_balance')
+        .eq('id', user.id)
+        .single();
+
+      if (userError || !userData || userData.wallet_balance < gameData.entry_fee) {
+        toast.error('Insufficient wallet balance!');
+        return;
+      }
+
+      if (gameData.current_players >= gameData.max_players) {
+        toast.error('Game is full!');
+        fetchActiveGames(); // Refresh the list
+        return;
+      }
+
+      // Use RPC to join game
+      const { error: rpcError } = await supabase
+        .rpc('auto_join_or_create_game', {
+          _user_id: user.id,
+          _entry_fee: gameData.entry_fee,
+          _max_players: gameData.max_players
+        });
+
+      if (rpcError) throw rpcError;
+
+      // Deduct from wallet
+      const { error: walletError } = await supabase
+        .from('users')
+        .update({ wallet_balance: userData.wallet_balance - gameData.entry_fee })
+        .eq('id', user.id);
+
+      if (walletError) throw walletError;
+
+      // Log transaction
+      await supabase.from('transactions').insert({
+        user_id: user.id,
+        type: 'game_entry',
+        amount: -gameData.entry_fee,
+        status: 'completed',
+        reference_id: gameId
+      });
+
+      toast.success('Joined game successfully!');
+      navigate(`/lobby/${gameId}`);
+
+    } catch (error: any) {
+      console.error('Error joining game:', error);
+      toast.error(error.message || 'Failed to join game');
+    } finally {
+      setJoiningGameId(null);
+    }
   };
 
   const handleCreateGame = () => {
