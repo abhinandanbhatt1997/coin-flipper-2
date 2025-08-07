@@ -17,7 +17,7 @@ export default function Home() {
         const { data: dbUser } = await supabase
           .from("users")
           .select("wallet_balance")
-          .eq("id", user.user_id)
+          .eq("id", user.id)
           .single();
 
         setBalance(dbUser?.wallet_balance ?? 0);
