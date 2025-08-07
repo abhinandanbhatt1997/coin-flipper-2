@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-VITE_SUPABASE_URL=http://localhost:54321;
+VITE_SUPABASE_URL=kflzyfonuzdvmnztdojt.supabase.co;
 VITE_SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmbHp5Zm9udXpkdm1uenRkb2p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3MTU2NDgsImV4cCI6MjA2OTI5MTY0OH0.wmqHFQzVMG2uXxEyI2opm2D4jhrrZRflSAaYkBg1EEw';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
