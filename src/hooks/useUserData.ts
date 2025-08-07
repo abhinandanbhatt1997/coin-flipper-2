@@ -60,9 +60,11 @@ export const useUserData = (userId: string | undefined) => {
         .select('*')
         .eq('user_id', userId)
         .single()
+        .maybesingle()
         .then(({ data }) => {
           if (data) setUserData(data);
         });
     }
   }};
+};
 };
