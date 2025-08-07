@@ -17,7 +17,7 @@ export const useUserData = (userId: string | undefined) => {
         const { data, error } = await supabase
           .from('users')
           .select('*')
-          .eq('id', userId)
+          .eq('user_id', userId)
           .single();
 
         if (error) {
@@ -42,7 +42,7 @@ export const useUserData = (userId: string | undefined) => {
         event: 'UPDATE',
         schema: 'public',
         table: 'users',
-        filter: `id=eq.${userId}`,
+        filter: `user_id=eq.${userId}`,
       }, (payload) => {
         setUserData(payload.new as AppUser);
       })
@@ -58,7 +58,7 @@ export const useUserData = (userId: string | undefined) => {
       supabase
         .from('users')
         .select('*')
-        .eq('id', userId)
+        .eq('user_id', userId)
         .single()
         .then(({ data }) => {
           if (data) setUserData(data);
