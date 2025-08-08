@@ -10,6 +10,7 @@ import PaymentsPage from "./pages/PaymentsPage";
 import GameLobby from "./game/GameLobby";
 import PlayGamePage from "./pages/PlayGamePage"; // ✅ Import PlayGamePage
 import AdminPage from "./pages/AdminPage";
+import SecureCoinFlip from "./components/SecureCoinFlip";
 import CoinFlipGame from "./components/CoinFlipGame";
 
 function App() {
@@ -51,6 +52,7 @@ function App() {
           <Route path="/lobby/:id" element={<GameLobby />} />
           <Route path="/play/:id" element={<PlayGamePage />} /> {/* ✅ FIXED: route now accepts :id */}
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/coin-flip" element={<SecureCoinFlip />} />
           <Route path="/create-game" element={<CoinFlipGame />} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>

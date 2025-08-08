@@ -4,6 +4,8 @@ import { useAuth } from "../hooks/useAuth";
 import { useUserData } from "../hooks/useUserData";
 import Dashboard from "../components/Dashboard";
 import GameCategories from "../components/GameCategories";
+import SecureCoinFlip from "../components/SecureCoinFlip";
+import SecureWallet from "../components/SecureWallet";
 import { motion } from "framer-motion";
 import { LogOut, Wallet, Trophy, History, User, Settings, Home, Play, CreditCard, Shield, Bell, Star, TrendingUp, Users, GamepadIcon } from "lucide-react";
 import { signOut } from "../lib/supabase";
@@ -14,7 +16,7 @@ const UserPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { userData, loading: userLoading, refetch } = useUserData(user?.id);
-  const [activeTab, setActiveTab] = useState<'home' | 'games' | 'wallet' | 'history' | 'settings'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'games' | 'wallet' | 'history' | 'settings' | 'coin-flip'>('home');
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -73,6 +75,7 @@ const UserPage: React.FC = () => {
   const tabs = [
     { id: 'home', label: 'Home', icon: Home, color: 'from-blue-500 to-cyan-500' },
     { id: 'games', label: 'Play Games', icon: Trophy, color: 'from-purple-500 to-pink-500' },
+    { id: 'coin-flip', label: 'Coin Flip', icon: Star, color: 'from-yellow-500 to-orange-500' },
     { id: 'wallet', label: 'Wallet', icon: Wallet, color: 'from-green-500 to-emerald-500' },
     { id: 'history', label: 'History', icon: History, color: 'from-orange-500 to-red-500' },
     { id: 'settings', label: 'Settings', icon: Settings, color: 'from-gray-500 to-slate-600' }
@@ -123,7 +126,7 @@ const UserPage: React.FC = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setActiveTab('games')}
+                  onClick={() => setActiveTab('coin-flip')}
                   className="flex items-center gap-2 px-3 py-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-colors border border-purple-500/30"
                 >
                   <Play className="w-4 h-4" />
@@ -302,7 +305,7 @@ const UserPage: React.FC = () => {
                   transition={{ delay: 0.6 }}
                   whileHover={{ scale: 1.02, y: -5 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => setActiveTab('games')}
+                  onClick={() => setActiveTab('coin-flip')}
                   className="bg-gradient-to-br from-purple-500/20 to-pink-600/20 backdrop-blur-lg rounded-2xl p-8 border border-purple-500/30 hover:border-purple-400/50 transition-all group"
                 >
                   <div className="flex items-center gap-4">
@@ -310,8 +313,8 @@ const UserPage: React.FC = () => {
                       <Play className="w-8 h-8 text-purple-400" />
                     </div>
                     <div className="text-left">
-                      <h3 className="text-xl font-bold text-white mb-2">Start Playing</h3>
-                      <p className="text-white/70">Choose your game category and test your luck!</p>
+                      <h3 className="text-xl font-bold text-white mb-2">Play Coin Flip</h3>
+                      <p className="text-white/70">Secure coin flip game with provably fair results!</p>
                     </div>
                   </div>
                 </motion.button>
@@ -347,7 +350,7 @@ const UserPage: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   className="text-4xl font-bold text-white mb-4"
                 >
-                  Choose Your Game
+                  Multi-Player Games
                 </motion.h2>
                 <motion.p 
                   initial={{ opacity: 0, y: 20 }}
@@ -355,13 +358,36 @@ const UserPage: React.FC = () => {
                   transition={{ delay: 0.1 }}
                   className="text-white/80 text-lg"
                 >
-                  Select a category and test your luck!
+                  Join other players in exciting multiplayer games!
                 </motion.p>
               </div>
               <GameCategories
                 onSelectCategory={handleSelectCategory}
                 userBalance={userData.wallet_balance}
               />
+            </div>
+          )}
+
+          {activeTab === 'coin-flip' && (
+            <div>
+              <div className="text-center mb-8">
+                <motion.h2 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-4xl font-bold text-white mb-4"
+                >
+                  Secure Coin Flip
+                </motion.h2>
+                <motion.p 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="text-white/80 text-lg"
+                >
+                  Provably fair coin flip game with server-side logic
+                </motion.p>
+              </div>
+              <SecureCoinFlip />
             </div>
           )}
 
@@ -381,10 +407,10 @@ const UserPage: React.FC = () => {
                   transition={{ delay: 0.1 }}
                   className="text-white/80 text-lg"
                 >
-                  Manage your funds and view active games
+                  Buy coins and manage your secure wallet
                 </motion.p>
               </div>
-              <Dashboard />
+              <SecureWallet />
             </div>
           )}
 
