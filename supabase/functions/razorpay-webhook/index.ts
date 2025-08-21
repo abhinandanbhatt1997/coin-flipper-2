@@ -18,9 +18,11 @@ interface RazorpayWebhookPayload {
         currency: string;
         status: string;
         order_id: string;
+        method: string;
+        created_at: number;
         notes: {
-          user_id: string;
-          coins_to_add: string;
+          user_id?: string;
+          purpose?: string;
         };
       };
     };
@@ -41,56 +43,152 @@ serve(async (req) => {
     const signature = req.headers.get('x-razorpay-signature');
     const body = await req.text();
     
-    // Verify webhook signature (in production)
-    const webhookSecret = Deno.env.get('RAZORPAY_WEBHOOK_SECRET');
-    if (webhookSecret && signature) {
-      const expectedSignature = await createHmac("sha256", webhookSecret)
+    // Verify webhook signature
+    const RAZORPAY_WEBHOOK_SECRET = Deno.env.get('RAZORPAY_WEBHOOK_SECRET') || 'your_webhook_secret_here';
+    
+    if (signature && RAZORPAY_WEBHOOK_SECRET) {
+      const expectedSignature = await createHmac("sha256", RAZORPAY_WEBHOOK_SECRET)
         .update(body)
         .digest("hex");
       
       if (signature !== expectedSignature) {
+        console.error('Invalid webhook signature');
         throw new Error('Invalid webhook signature');
       }
     }
 
     const payload: RazorpayWebhookPayload = JSON.parse(body);
+    console.log('Webhook received:', payload.event);
 
     // Handle payment.captured event
     if (payload.event === 'payment.captured') {
       const payment = payload.payload.payment.entity;
       const userId = payment.notes.user_id;
-      const coinsToAdd = parseInt(payment.notes.coins_to_add);
       
-      if (!userId || !coinsToAdd) {
-        throw new Error('Missing user_id or coins_to_add in payment notes');
+      if (!userId) {
+        console.error('No user_id in payment notes');
+        throw new Error('Missing user_id in payment notes');
       }
 
-      // Add coins to user's wallet
-      const { error: walletError } = await supabaseClient
-        .rpc('update_wallet_balance', {
-          p_user_id: userId,
-          p_amount: coinsToAdd,
-          p_type: 'purchase',
-          p_reference_id: payment.id
-        });
+      const amountInINR = payment.amount / 100; // Convert paise to INR
+      const coinsToAdd = Math.floor(amountInINR / 10); // ₹10 = 1 coin
+
+      // Check if this payment has already been processed
+      const { data: existingTransaction } = await supabaseClient
+        .from('coin_transactions')
+        .select('id, status')
+        .eq('razorpay_payment_id', payment.id)
+        .single();
+
+      if (existingTransaction && existingTransaction.status === 'completed') {
+        console.log('Payment already processed:', payment.id);
+        return new Response(
+          JSON.stringify({ success: true, message: 'Already processed' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get current wallet balance
+      const { data: wallet, error: walletError } = await supabaseClient
+        .from('wallets')
+        .select('coin_balance')
+        .eq('user_id', userId)
+        .single();
 
       if (walletError) {
+        // Create wallet if it doesn't exist
+        const { error: createWalletError } = await supabaseClient
+          .from('wallets')
+          .insert({
+            user_id: userId,
+            coin_balance: 0,
+            total_deposited: 0,
+            total_withdrawn: 0
+          });
+
+        if (createWalletError) {
+          throw new Error('Failed to create wallet');
+        }
+      }
+
+      const currentBalance = wallet?.coin_balance || 0;
+      const newBalance = currentBalance + coinsToAdd;
+
+      // Update wallet balance and total deposited
+      const { error: updateWalletError } = await supabaseClient
+        .from('wallets')
+        .upsert({
+          user_id: userId,
+          coin_balance: newBalance,
+          total_deposited: supabaseClient.raw(`COALESCE(total_deposited, 0) + ${amountInINR}`),
+          updated_at: new Date().toISOString()
+        });
+
+      if (updateWalletError) {
         throw new Error('Failed to update wallet balance');
       }
 
-      // Update total deposited amount
-      const { error: depositError } = await supabaseClient
-        .from('wallets')
-        .update({
-          total_deposited: supabaseClient.raw(`total_deposited + ${payment.amount / 100}`)
-        })
-        .eq('user_id', userId);
+      // Update or create transaction record
+      if (existingTransaction) {
+        // Update existing transaction
+        const { error: updateTransactionError } = await supabaseClient
+          .from('coin_transactions')
+          .update({
+            balance_before: currentBalance,
+            balance_after: newBalance,
+            razorpay_payment_id: payment.id,
+            status: 'completed'
+          })
+          .eq('id', existingTransaction.id);
 
-      if (depositError) {
-        console.error('Failed to update total deposited:', depositError);
+        if (updateTransactionError) {
+          console.error('Failed to update transaction:', updateTransactionError);
+        }
+      } else {
+        // Create new transaction record
+        const { error: createTransactionError } = await supabaseClient
+          .from('coin_transactions')
+          .insert({
+            user_id: userId,
+            type: 'deposit',
+            amount: coinsToAdd,
+            balance_before: currentBalance,
+            balance_after: newBalance,
+            reference_id: payment.order_id,
+            razorpay_payment_id: payment.id,
+            status: 'completed'
+          });
+
+        if (createTransactionError) {
+          console.error('Failed to create transaction:', createTransactionError);
+        }
       }
 
-      console.log(`Successfully added ${coinsToAdd} coins to user ${userId}`);
+      console.log(`Successfully processed payment ${payment.id} for user ${userId}: +${coinsToAdd} coins`);
+    }
+
+    // Handle payment.failed event
+    else if (payload.event === 'payment.failed') {
+      const payment = payload.payload.payment.entity;
+      const userId = payment.notes.user_id;
+
+      if (userId) {
+        // Update transaction status to failed
+        const { error: updateError } = await supabaseClient
+          .from('coin_transactions')
+          .update({
+            razorpay_payment_id: payment.id,
+            status: 'failed'
+          })
+          .eq('reference_id', payment.order_id)
+          .eq('user_id', userId);
+
+        if (updateError) {
+          console.error('Failed to update failed transaction:', updateError);
+        }
+
+        console.log(`Payment failed for user ${userId}: ${payment.id}`);
+      }
     }
 
     return new Response(

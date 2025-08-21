@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { openRazorpayCheckout } from "../../lib/razorpay";
+import { useAuth } from "../../hooks/useAuth";
 import { motion } from "framer-motion";
 import { CreditCard, X, Loader } from "lucide-react";
 import toast from "react-hot-toast";
@@ -9,6 +11,7 @@ interface DepositModalProps {
 }
 
 const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
+  const { user } = useAuth();
   const [amount, setAmount] = useState<number>(500);
   const [loading, setLoading] = useState(false);
 
@@ -20,51 +23,45 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
       return;
     }
 
+    if (!user) {
+      toast.error("Please log in first");
+      return;
+    }
+
     setLoading(true);
     try {
-      const user = (await supabase.auth.getUser()).data.user;
-      if (!user) {
-        toast.error("Please log in first");
-        return;
-      }
-
-      // Get current balance
-      const { data: userData, error: fetchError } = await supabase
-        .from("users")
-        .select("wallet_balance")
-        .eq("id", user.id)
-        .single();
-
-      if (fetchError) {
-        toast.error("Failed to fetch wallet balance");
-        return;
-      }
-
-      // Update balance (simplified for demo - in production use payment gateway)
-      const newBalance = userData.wallet_balance + amount;
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({ wallet_balance: newBalance })
-        .eq("id", user.id);
-
-      if (updateError) {
-        toast.error("Failed to update balance");
-        return;
-      }
-
-      // Create transaction record
-      await supabase.from("transactions").insert({
-        user_id: user.id,
-        type: "deposit",
-        amount: amount,
-        status: "completed",
-        reference_id: `demo_deposit_${Date.now()}`
+      // Create payment order via edge function
+      const { data, error } = await supabase.functions.invoke('create-payment-order', {
+        body: {
+          amount: amount,
+          userId: user.id
+        }
       });
 
-      toast.success(`₹${amount} deposited successfully!`);
-      onClose();
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to create payment order');
+      }
+
+      // Open Razorpay checkout
+      await openRazorpayCheckout({
+        orderId: data.orderId,
+        amount: data.amount, // Amount in paise
+        userId: user.id,
+        userEmail: user.email || undefined,
+        onSuccess: () => {
+          onClose();
+        },
+        onFailure: (error) => {
+          console.error('Payment failed:', error);
+        }
+      });
+
     } catch (error: any) {
-      toast.error("Deposit failed");
+      toast.error(error.message || "Failed to initiate payment");
       console.error("Deposit error:", error);
     } finally {
       setLoading(false);
@@ -148,10 +145,10 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
               {loading ? (
                 <>
                   <Loader className="w-4 h-4 animate-spin" />
-                  Processing...
+                  Creating Order...
                 </>
               ) : (
-                `Add ₹${amount.toLocaleString()}`
+                `Pay ₹${amount.toLocaleString()}`
               )}
             </button>
           </div>
