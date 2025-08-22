@@ -1,129 +1,119 @@
-// src/components/modals/DepositModal.tsx
 import React, { useState } from "react";
-import { supabase } from "../../lib/supabase";
-import { openRazorpayCheckout } from "../../lib/razorpay";
-import { useAuth } from "../../hooks/useAuth";
 import { motion } from "framer-motion";
 import { CreditCard, X, Loader } from "lucide-react";
 import toast from "react-hot-toast";
+import { useAuth } from "../../hooks/useAuth";
 
 interface DepositModalProps {
   onClose: () => void;
 }
+
+declare const Razorpay: any; // Ensure Razorpay script is loaded in your HTML
 
 const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
   const { user } = useAuth();
   const [amount, setAmount] = useState<number>(500);
   const [loading, setLoading] = useState(false);
 
-  const predefinedAmounts = [100, 500, 1000, 2000, 5000, 10000];
+  const predefinedAmounts = [100, 500, 1000, 2000, 5000];
 
   const handleDeposit = async () => {
-    if (!user) return toast.error("Please log in first");
+    if (!user) return toast.error("Please login first");
     if (amount < 100) return toast.error("Minimum deposit ₹100");
 
     setLoading(true);
     try {
-      // Call Supabase Edge Function
-      const { data, error } = await supabase.functions.invoke("create-coin-order", {
-        body: JSON.stringify({ amount, userId: user.id }),
-      });
+      // Call Edge Function
+      const res = await fetch(
+        "https://YOUR-PROJECT-ref.supabase.co/functions/v1/create-coin-order",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount, userId: user.id })
+        }
+      );
 
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error || "Order creation failed");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create order");
 
       // Open Razorpay checkout
-      await openRazorpayCheckout({
-        orderId: data.orderId,
-        amount: data.amount, // in paise
-        userId: user.id,
-        userEmail: user.email || undefined,
-        onSuccess: () => {
-          toast.success(`₹${amount} added successfully!`);
+      const options = {
+        key: "RAZORPAY_KEY_ID", // Replace with your Razorpay Key ID
+        amount: data.amount,
+        currency: "INR",
+        name: "Coin Flipper",
+        description: "Add funds to wallet",
+        order_id: data.orderId,
+        prefill: { email: user.email },
+        handler: async (response: any) => {
+          toast.success("Payment successful!");
           onClose();
+          // Optionally mark transaction completed via Edge Function or RPC
         },
-        onFailure: (err) => {
-          toast.error("Payment failed");
-          console.error(err);
-        },
-      });
+        modal: { escape: true }
+      };
+
+      const rzp = new Razorpay(options);
+      rzp.open();
+
     } catch (err: any) {
-      toast.error(err.message || "Deposit failed");
-      console.error(err);
+      console.error("Deposit error:", err);
+      toast.error(err.message || "Payment failed");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border border-white/20"
+        className="bg-white/10 backdrop-blur-lg p-6 rounded-xl w-full max-w-md border border-white/20"
       >
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
               <CreditCard className="w-5 h-5 text-green-400" />
             </div>
-            <h2 className="text-xl font-bold text-white">Add Money</h2>
+            <h2 className="text-white font-bold text-lg">Add Money</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition-colors"
-          >
-            <X className="w-4 h-4 text-white" />
+          <button onClick={onClose} className="text-white w-8 h-8 flex items-center justify-center">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="space-y-4">
-          <div>
-            <label className="block text-white/80 text-sm font-medium mb-2">Select Amount</label>
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {predefinedAmounts.map((val) => (
-                <button
-                  key={val}
-                  onClick={() => setAmount(val)}
-                  className={`py-3 px-3 rounded-lg text-sm font-medium transition-all ${
-                    amount === val
-                      ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg"
-                      : "bg-white/10 text-white/80 hover:bg-white/20 border border-white/20"
-                  }`}
-                >
-                  ₹{val.toLocaleString()}
-                </button>
-              ))}
-            </div>
+          <div className="grid grid-cols-3 gap-2">
+            {predefinedAmounts.map(a => (
+              <button
+                key={a}
+                onClick={() => setAmount(a)}
+                className={`py-2 rounded-lg text-sm ${
+                  amount === a ? "bg-green-500 text-white" : "bg-white/10 text-white/80"
+                }`}
+              >
+                ₹{a}
+              </button>
+            ))}
           </div>
 
-          <div>
-            <label className="block text-white/80 text-sm font-medium mb-2">Custom Amount</label>
-            <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
-              min={100}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:ring-2 focus:ring-green-500 focus:border-green-500"
-            />
-          </div>
+          <input
+            type="number"
+            min={100}
+            value={amount}
+            onChange={(e) => setAmount(Number(e.target.value))}
+            className="w-full p-3 rounded-lg bg-white/10 border border-white/20 text-white"
+          />
 
-          <div className="flex gap-3 pt-4">
-            <button
-              onClick={onClose}
-              className="flex-1 py-3 px-4 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleDeposit}
-              disabled={loading || amount < 100}
-              className="flex-1 py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium flex items-center justify-center gap-2 shadow-lg"
-            >
-              {loading ? <Loader className="w-4 h-4 animate-spin" /> : `Pay ₹${amount}`}
-            </button>
-          </div>
+          <button
+            onClick={handleDeposit}
+            disabled={loading}
+            className="w-full py-3 rounded-lg bg-green-500 text-white flex items-center justify-center gap-2"
+          >
+            {loading && <Loader className="w-4 h-4 animate-spin" />}
+            {loading ? "Processing..." : `Pay ₹${amount}`}
+          </button>
         </div>
       </motion.div>
     </div>
