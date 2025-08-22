@@ -1,3 +1,4 @@
+// src/components/modals/DepositModal.tsx
 import React, { useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { openRazorpayCheckout } from "../../lib/razorpay";
@@ -12,36 +13,29 @@ interface DepositModalProps {
 
 const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
   const { user } = useAuth();
-  const [amount, setAmount] = useState<number>(500); // Default deposit amount
+  const [amount, setAmount] = useState<number>(500);
   const [loading, setLoading] = useState(false);
 
   const predefinedAmounts = [100, 500, 1000, 2000, 5000, 10000];
 
   const handleDeposit = async () => {
-    if (amount < 100) {
-      toast.error("Minimum deposit amount is ₹100");
-      return;
-    }
-
-    if (!user) {
-      toast.error("Please log in first");
-      return;
-    }
+    if (!user) return toast.error("Please log in first");
+    if (amount < 100) return toast.error("Minimum deposit ₹100");
 
     setLoading(true);
     try {
-      // 1. Create payment order via Supabase Edge Function
+      // Call Supabase Edge Function
       const { data, error } = await supabase.functions.invoke("create-coin-order", {
-        body: { amount_inr: amount, user_id: user.id },
+        body: JSON.stringify({ amount, userId: user.id }),
       });
 
-      if (error) throw new Error(error.message);
-      if (!data.success) throw new Error(data.error || "Failed to create payment order");
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || "Order creation failed");
 
-      // 2. Open Razorpay Checkout
+      // Open Razorpay checkout
       await openRazorpayCheckout({
         orderId: data.orderId,
-        amount: data.amount,
+        amount: data.amount, // in paise
         userId: user.id,
         userEmail: user.email || undefined,
         onSuccess: () => {
@@ -49,13 +43,13 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
           onClose();
         },
         onFailure: (err) => {
-          console.error("Payment failed:", err);
-          toast.error("Payment failed. Try again.");
+          toast.error("Payment failed");
+          console.error(err);
         },
       });
     } catch (err: any) {
-      console.error("Deposit error:", err);
-      toast.error(err.message || "Failed to initiate payment");
+      toast.error(err.message || "Deposit failed");
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -69,7 +63,6 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
         exit={{ opacity: 0, scale: 0.9 }}
         className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 w-full max-w-md border border-white/20"
       >
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
@@ -85,28 +78,26 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
           </button>
         </div>
 
-        {/* Amount Selection */}
         <div className="space-y-4">
           <div>
             <label className="block text-white/80 text-sm font-medium mb-2">Select Amount</label>
             <div className="grid grid-cols-3 gap-2 mb-4">
-              {predefinedAmounts.map((preAmount) => (
+              {predefinedAmounts.map((val) => (
                 <button
-                  key={preAmount}
-                  onClick={() => setAmount(preAmount)}
+                  key={val}
+                  onClick={() => setAmount(val)}
                   className={`py-3 px-3 rounded-lg text-sm font-medium transition-all ${
-                    amount === preAmount
+                    amount === val
                       ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg"
                       : "bg-white/10 text-white/80 hover:bg-white/20 border border-white/20"
                   }`}
                 >
-                  ₹{preAmount.toLocaleString()}
+                  ₹{val.toLocaleString()}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Custom Amount */}
           <div>
             <label className="block text-white/80 text-sm font-medium mb-2">Custom Amount</label>
             <input
@@ -114,13 +105,10 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
               value={amount}
               onChange={(e) => setAmount(Number(e.target.value))}
               min={100}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg font-semibold"
-              placeholder="Enter amount"
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:ring-2 focus:ring-green-500 focus:border-green-500"
             />
-            <div className="text-white/60 text-xs mt-1">Minimum deposit: ₹100</div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
             <button
               onClick={onClose}
@@ -133,14 +121,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ onClose }) => {
               disabled={loading || amount < 100}
               className="flex-1 py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium flex items-center justify-center gap-2 shadow-lg"
             >
-              {loading ? (
-                <>
-                  <Loader className="w-4 h-4 animate-spin" />
-                  Creating Order...
-                </>
-              ) : (
-                `Pay ₹${amount.toLocaleString()}`
-              )}
+              {loading ? <Loader className="w-4 h-4 animate-spin" /> : `Pay ₹${amount}`}
             </button>
           </div>
         </div>
